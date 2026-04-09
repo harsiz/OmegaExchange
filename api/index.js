@@ -16,7 +16,6 @@ const {
   OMEGACASES_USER_URL     = 'https://www.omegacases.com/api/oauth/me',
 } = process.env
 
-const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || '').split(',').map(s => s.trim()).filter(Boolean)
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || 'https://discord.com/api/webhooks/1491871730933960804/nDxMuzv2NJlcVYPu_K5X5qXSEk7ZXUUKQtGas-Pe3TfRDTYaLYY0oITOQE_1VY51upea'
 
 // Supabase — use placeholder URLs so createClient never throws at cold start.
@@ -54,10 +53,9 @@ function requireAuth(req, res, next) {
   }
 }
 
-function requireAdmin(req, res, next) {
-  if (!ADMIN_USER_IDS.includes(req.user.id)) {
-    return res.status(403).json({ error: 'Admin only' })
-  }
+async function requireAdmin(req, res, next) {
+  const { data: u } = await supabase.from('users').select('is_admin').eq('id', req.user.id).single()
+  if (!u?.is_admin) return res.status(403).json({ error: 'Admin only' })
   next()
 }
 
@@ -101,8 +99,12 @@ app.get('/api/auth/callback', async (req, res) => {
       { onConflict: 'user_id', ignoreDuplicates: true },
     )
 
+    // Read is_admin from DB to embed in JWT
+    const { data: dbUser } = await supabase.from('users').select('is_admin').eq('id', userId).single()
+    const isAdmin = dbUser?.is_admin === true
+
     // Issue our own signed JWT
-    const jwtToken = jwt.sign({ sub: userId, username: uname }, JWT_SECRET, { expiresIn: '30d' })
+    const jwtToken = jwt.sign({ sub: userId, username: uname, is_admin: isAdmin }, JWT_SECRET, { expiresIn: '30d' })
     res.redirect(`${APP_URL}/auth/callback?token=${jwtToken}`)
   } catch (err) {
     console.error('OAuth callback error:', err)
@@ -746,9 +748,10 @@ app.post('/api/admin/withdrawals/:id/reject', requireAuth, requireAdmin, async (
   res.json({ message: 'Rejected and refunded' })
 })
 
-// GET /api/admin/me — check if current user is admin
-app.get('/api/admin/me', requireAuth, (req, res) => {
-  res.json({ isAdmin: ADMIN_USER_IDS.includes(req.user.id) })
+// GET /api/admin/me — check if current user is admin (reads is_admin from users table)
+app.get('/api/admin/me', requireAuth, async (req, res) => {
+  const { data: u } = await supabase.from('users').select('is_admin').eq('id', req.user.id).single()
+  res.json({ isAdmin: u?.is_admin === true })
 })
 
 // ══════════════════════════════════════════════════

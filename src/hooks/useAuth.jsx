@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
     setToken(token)
     const payload = parseJwt(token)
     if (payload) {
-      const u = { id: payload.sub, username: payload.username }
+      const u = { id: payload.sub, username: payload.username, is_admin: payload.is_admin === true }
       setUserState(u)
       setUser(u)
     }
