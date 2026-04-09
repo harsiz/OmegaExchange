@@ -117,50 +117,35 @@ app.get('/api/auth/me', requireAuth, async (req, res) => {
 
 // GET /api/offers
 app.get('/api/offers', async (req, res) => {
-  const { currency, payment_method, sort = 'price_asc', seller_id } = req.query
+  const { currency, payment_method, sort = 'price_asc' } = req.query
 
   let query = supabase
     .from('offers')
-    .select(`
-      *,
-      seller:users!offers_seller_id_fkey(id, username),
-      reputation:reputation!reputation_user_id_fkey(total_trades, successful_trades, rating)
-    `)
+    .select('*, seller:users(id, username)')
     .eq('is_active', true)
     .gt('available_amount', 0)
 
   if (currency)       query = query.eq('currency', currency)
   if (payment_method) query = query.contains('payment_methods', [payment_method])
-  if (seller_id === 'me') {
-    // handled with requireAuth — for now return empty if no auth header
-  }
 
-  // Sort
   if (sort === 'price_asc')  query = query.order('price', { ascending: true })
   if (sort === 'price_desc') query = query.order('price', { ascending: false })
   if (sort === 'newest')     query = query.order('created_at', { ascending: false })
 
   const { data, error } = await query.limit(50)
-  if (error) return res.status(500).json({ error: error.message })
-
-  // Sort by reputation if requested
-  let offers = data || []
-  if (sort === 'rate_desc') {
-    offers = offers.sort((a, b) => {
-      const rateA = a.reputation?.total_trades ? a.reputation.successful_trades / a.reputation.total_trades : 1
-      const rateB = b.reputation?.total_trades ? b.reputation.successful_trades / b.reputation.total_trades : 1
-      return rateB - rateA
-    })
+  if (error) {
+    console.error('[GET /api/offers] error:', error)
+    return res.status(500).json({ error: error.message })
   }
 
-  res.json({ offers })
+  res.json({ offers: data || [] })
 })
 
 // GET /api/offers/:id
 app.get('/api/offers/:id', async (req, res) => {
   const { data, error } = await supabase
     .from('offers')
-    .select('*, seller:users!offers_seller_id_fkey(id, username), reputation(*)')
+    .select('*, seller:users(id, username)')
     .eq('id', req.params.id)
     .single()
   if (error) return res.status(404).json({ error: 'Offer not found' })
