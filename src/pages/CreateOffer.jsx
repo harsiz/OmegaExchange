@@ -16,12 +16,10 @@ import { toast } from '@/hooks/useToast'
 const COINGECKO_IDS = {
   BTC:  'bitcoin',
   ETH:  'ethereum',
-  USDT: 'tether',
-  LTC:  'litecoin',
-  XMR:  'monero',
   SOL:  'solana',
-  BNB:  'binancecoin',
+  USDT: 'tether',
   USDC: 'usd-coin',
+  LTC:  'litecoin',
 }
 
 async function fetchMarketPrice(symbol) {
