@@ -32,6 +32,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://omegaexchange.vercel.app',
+  'https://exchange.omegacases.com',
 ].filter(Boolean)
 
 app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }))
