@@ -96,23 +96,34 @@ app.get('/api/auth/callback', async (req, res) => {
       accessToken = tokenData.access_token
     }
 
+    // Log all received query params for debugging
+    console.log('[auth/callback] query params:', JSON.stringify(req.query))
+
     // Fetch user info — OmegaCases uses ?token= query param
-    const meUrl = `https://www.omegacases.com/api/oauth/me?token=${accessToken}`
-    console.log('[auth/callback] fetching user info:', meUrl.replace(accessToken, '[REDACTED]'))
-    const userRes  = await fetch(meUrl)
+    const meUrl = `https://www.omegacases.com/api/oauth/me?token=${accessToken}&client_id=${OMEGACASES_CLIENT_ID}`
+    console.log('[auth/callback] fetching:', meUrl.replace(accessToken, '[TOKEN]'))
+    const userRes  = await fetch(meUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'OmegaExchange/1.0',
+      },
+    })
     const rawBody = await userRes.text()
-    console.log('[auth/callback] user info status:', userRes.status, 'body:', rawBody.slice(0, 300))
+    console.log('[auth/callback] status:', userRes.status, 'body:', rawBody.slice(0, 500))
 
     let userData
     try {
       userData = JSON.parse(rawBody)
     } catch {
-      throw new Error(`User info endpoint returned non-JSON (status ${userRes.status}): ${rawBody.slice(0, 200)}`)
+      throw new Error(`User info non-JSON (${userRes.status}): ${rawBody.slice(0, 200)}`)
     }
 
-    const userId   = String(userData.id || userData.userid || userData.user_id || '')
-    const username = userData.username || userData.name
+    // Unwrap common response envelope patterns
+    const userObj = userData.user || userData.data || userData.result || userData
+    const userId   = String(userObj.id || userObj.userid || userObj.user_id || userObj.userId || '')
+    const username = userObj.username || userObj.name || userObj.display_name
 
+    console.log('[auth/callback] userObj:', JSON.stringify(userObj), 'userId:', userId, 'username:', username)
     if (!userId || !username) throw new Error(`Missing user data: ${JSON.stringify(userData)}`)
 
     // Upsert user in DB
