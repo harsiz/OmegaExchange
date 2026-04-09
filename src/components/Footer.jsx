@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Shield, Lock, Zap } from 'lucide-react'
+import OmegaCasesText from '@/components/OmegaCasesText'
 
 export default function Footer() {
   return (
@@ -80,7 +81,7 @@ export default function Footer() {
 
         <div className="border-t border-navy-800 mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-slate-600">© 2026 OmegaExchange. All rights reserved.</p>
-          <p className="text-xs text-slate-600">Powered by OmegaCases OAuth · Supabase · Tatum</p>
+          <p className="text-xs text-slate-600">Powered by <OmegaCasesText /> OAuth · Supabase · Tatum</p>
         </div>
       </div>
     </footer>

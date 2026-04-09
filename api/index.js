@@ -16,15 +16,25 @@ const {
   OMEGACASES_USER_URL     = 'https://omegacases.com/api/user',
 } = process.env
 
+// Supabase — use placeholder URLs so createClient never throws at cold start.
+// Requests will 500 with a clear message if env vars aren't configured.
 const supabase = createClient(
-  SUPABASE_URL || '',
-  SUPABASE_SERVICE_ROLE_KEY || '',
+  SUPABASE_URL            || 'https://placeholder.supabase.co',
+  SUPABASE_SERVICE_ROLE_KEY || 'placeholder-service-key',
 )
 
 // ── App ───────────────────────────────────────────
 const app = express()
 
-app.use(cors({ origin: APP_URL, credentials: true }))
+// Allow the deployed Vercel URL as well as localhost
+const ALLOWED_ORIGINS = [
+  APP_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://omegaexchange.vercel.app',
+].filter(Boolean)
+
+app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }))
 app.use(express.json())
 
 // ── Auth middleware ────────────────────────────────

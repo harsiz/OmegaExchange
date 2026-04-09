@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import OmegaCasesText from '@/components/OmegaCasesText'
 
 export default function AuthCallback() {
   const navigate         = useNavigate()
@@ -43,7 +44,7 @@ export default function AuthCallback() {
           <>
             <Loader2 className="h-12 w-12 text-brand-400 animate-spin mx-auto mb-4" />
             <p className="text-white font-heading text-lg font-semibold">Signing you in…</p>
-            <p className="text-slate-400 text-sm mt-1">Verifying your OmegaCases account</p>
+            <p className="text-slate-400 text-sm mt-1">Verifying your <OmegaCasesText /> account</p>
           </>
         )}
         {status === 'success' && (
