@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, X, ChevronDown, Wallet, LogOut, LayoutDashboard, PlusCircle } from 'lucide-react'
+import { Menu, X, ChevronDown, Wallet, LogOut, LayoutDashboard, PlusCircle, ArrowDownLeft, Shield } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { loginWithOmegaCases } from '@/lib/auth'
+import { loginWithOmegaCases, authHeaders } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import OmegaExchangeText from '@/components/OmegaExchangeText'
@@ -24,8 +24,20 @@ export default function Navbar() {
   const { user, logout } = useAuth()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const isActive = href => location.pathname === href.split('?')[0]
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false)
+      return
+    }
+    fetch('/api/admin/me', { headers: authHeaders() })
+      .then(r => r.json())
+      .then(data => setIsAdmin(!!data.isAdmin))
+      .catch(() => setIsAdmin(false))
+  }, [user])
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-40">
@@ -96,6 +108,21 @@ export default function Navbar() {
                           <Wallet className="h-4 w-4" /> Deposit Funds
                         </Link>
                       </DropdownMenuItem>
+                      <DropdownMenuItem asChild className="hover:bg-navy-700 cursor-pointer">
+                        <Link to="/withdraw" className="flex items-center gap-2">
+                          <ArrowDownLeft className="h-4 w-4" /> Withdraw
+                        </Link>
+                      </DropdownMenuItem>
+                      {isAdmin && (
+                        <>
+                          <DropdownMenuSeparator className="bg-navy-700" />
+                          <DropdownMenuItem asChild className="hover:bg-navy-700 cursor-pointer">
+                            <Link to="/admin" className="flex items-center gap-2 text-amber-400">
+                              <Shield className="h-4 w-4" /> Admin Panel
+                            </Link>
+                          </DropdownMenuItem>
+                        </>
+                      )}
                       <DropdownMenuSeparator className="bg-navy-700" />
                       <DropdownMenuItem
                         onClick={logout}
@@ -142,6 +169,10 @@ export default function Navbar() {
               {user ? (
                 <>
                   <Link to="/dashboard" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-slate-300 hover:text-white">Dashboard</Link>
+                  <Link to="/withdraw" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-slate-300 hover:text-white">Withdraw</Link>
+                  {isAdmin && (
+                    <Link to="/admin" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-amber-400 hover:text-amber-300">Admin Panel</Link>
+                  )}
                   <button onClick={() => { logout(); setMobileOpen(false) }} className="block w-full text-left px-3 py-2 text-sm text-red-400">Sign Out</button>
                 </>
               ) : (

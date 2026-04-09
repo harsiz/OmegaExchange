@@ -15,10 +15,10 @@ const METHODS = [
     key:   'paypal',
     label: 'PayPal',
     icon:  CreditCard,
-    desc:  'Send USD to our PayPal. Include your username in the note.',
+    desc:  'Send USD to harsiscoolasemota@gmail.com. Include your username in the note.',
     placeholder: 'PayPal transaction ID (e.g. 1AB23456CD789)',
     color: 'text-blue-400',
-    instructions: 'Send your USD amount to paypal@omegaexchange.com — put your OmegaExchange username in the payment note. Then paste your PayPal transaction ID below.',
+    instructions: 'Send your USD amount to harsiscoolasemota@gmail.com via PayPal — put your OmegaExchange username in the payment note. Then paste your PayPal Transaction ID below.',
   },
   {
     key:   'giftcard',

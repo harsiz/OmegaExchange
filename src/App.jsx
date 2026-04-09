@@ -9,6 +9,8 @@ import Trade         from '@/pages/Trade'
 import Dashboard     from '@/pages/Dashboard'
 import CreateOffer   from '@/pages/CreateOffer'
 import Deposit       from '@/pages/Deposit'
+import Withdraw      from '@/pages/Withdraw'
+import Admin         from '@/pages/Admin'
 import AuthCallback  from '@/pages/AuthCallback'
 
 export default function App() {
@@ -33,6 +35,8 @@ export default function App() {
                 <Route path="/dashboard"    element={<Dashboard />} />
                 <Route path="/create-offer" element={<CreateOffer />} />
                 <Route path="/deposit"      element={<Deposit />} />
+                <Route path="/withdraw"     element={<Withdraw />} />
+                <Route path="/admin"        element={<Admin />} />
                 <Route path="*" element={
                   <div className="page-bg min-h-screen pt-20 flex items-center justify-center">
                     <div className="text-center">

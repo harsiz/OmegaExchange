@@ -16,6 +16,9 @@ const {
   OMEGACASES_USER_URL     = 'https://www.omegacases.com/api/oauth/me',
 } = process.env
 
+const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || '').split(',').map(s => s.trim()).filter(Boolean)
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || 'https://discord.com/api/webhooks/1491871730933960804/nDxMuzv2NJlcVYPu_K5X5qXSEk7ZXUUKQtGas-Pe3TfRDTYaLYY0oITOQE_1VY51upea'
+
 // Supabase — use placeholder URLs so createClient never throws at cold start.
 // Requests will 500 with a clear message if env vars aren't configured.
 const supabase = createClient(
@@ -49,6 +52,13 @@ function requireAuth(req, res, next) {
   } catch {
     res.status(401).json({ error: 'Invalid token' })
   }
+}
+
+function requireAdmin(req, res, next) {
+  if (!ADMIN_USER_IDS.includes(req.user.id)) {
+    return res.status(403).json({ error: 'Admin only' })
+  }
+  next()
 }
 
 // ══════════════════════════════════════════════════
@@ -597,6 +607,148 @@ app.get('/api/deposits', requireAuth, async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message })
   res.json({ deposits: data || [] })
+})
+
+// POST /api/withdrawals — user requests a withdrawal
+app.post('/api/withdrawals', requireAuth, async (req, res) => {
+  const { amount, paypal_address } = req.body
+  if (!amount || !paypal_address) return res.status(400).json({ error: 'amount and paypal_address required' })
+  const usd = parseFloat(amount)
+  if (usd < 5) return res.status(400).json({ error: 'Minimum withdrawal is $5' })
+  if (!paypal_address.includes('@')) return res.status(400).json({ error: 'Invalid PayPal address' })
+
+  // Check balance
+  const { data: bal } = await supabase.from('balances').select('usd_balance').eq('user_id', req.user.id).single()
+  if (!bal || bal.usd_balance < usd) return res.status(400).json({ error: 'Insufficient balance' })
+
+  // Deduct balance
+  await supabase.from('balances').update({ usd_balance: bal.usd_balance - usd }).eq('user_id', req.user.id)
+
+  // Insert withdrawal
+  const { data: withdrawal, error } = await supabase
+    .from('withdrawals')
+    .insert({ user_id: req.user.id, amount: usd, paypal_address: paypal_address.trim(), status: 'pending' })
+    .select()
+    .single()
+
+  if (error) {
+    // Refund on failure
+    await supabase.from('balances').update({ usd_balance: bal.usd_balance }).eq('user_id', req.user.id)
+    return res.status(500).json({ error: error.message })
+  }
+
+  // Discord webhook
+  try {
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        embeds: [{
+          title: '💸 Withdrawal Request',
+          color: 0x3b82f6,
+          fields: [
+            { name: 'User',    value: req.user.username,   inline: true },
+            { name: 'Amount',  value: `$${usd.toFixed(2)}`, inline: true },
+            { name: 'PayPal',  value: paypal_address.trim(), inline: true },
+          ],
+          footer: { text: 'OmegaExchange' },
+          timestamp: new Date().toISOString(),
+        }],
+      }),
+    })
+  } catch (err) {
+    console.error('Discord webhook failed:', err)
+  }
+
+  res.status(201).json({ withdrawal, message: 'Withdrawal request submitted.' })
+})
+
+// GET /api/withdrawals — user's own withdrawals
+app.get('/api/withdrawals', requireAuth, async (req, res) => {
+  const { data, error } = await supabase
+    .from('withdrawals')
+    .select('*')
+    .eq('user_id', req.user.id)
+    .order('created_at', { ascending: false })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ withdrawals: data || [] })
+})
+
+// ══ ADMIN ══════════════════════════════════════════
+
+// GET /api/admin/deposits
+app.get('/api/admin/deposits', requireAuth, requireAdmin, async (req, res) => {
+  const { data, error } = await supabase
+    .from('deposits')
+    .select('*, user:users(id, username)')
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ deposits: data || [] })
+})
+
+// POST /api/admin/deposits/:id/approve
+app.post('/api/admin/deposits/:id/approve', requireAuth, requireAdmin, async (req, res) => {
+  const { data: dep, error: depErr } = await supabase
+    .from('deposits').select('*').eq('id', req.params.id).single()
+  if (depErr || !dep) return res.status(404).json({ error: 'Deposit not found' })
+  if (dep.status !== 'pending') return res.status(400).json({ error: 'Already processed' })
+
+  // Credit balance
+  const { data: bal } = await supabase.from('balances').select('usd_balance').eq('user_id', dep.user_id).single()
+  const current = bal?.usd_balance ?? 0
+  await supabase.from('balances').upsert({ user_id: dep.user_id, usd_balance: current + dep.amount }, { onConflict: 'user_id' })
+
+  // Mark approved
+  await supabase.from('deposits').update({ status: 'approved' }).eq('id', req.params.id)
+  res.json({ message: `Approved $${dep.amount} for user ${dep.user_id}` })
+})
+
+// POST /api/admin/deposits/:id/reject
+app.post('/api/admin/deposits/:id/reject', requireAuth, requireAdmin, async (req, res) => {
+  const { data: dep } = await supabase.from('deposits').select('status').eq('id', req.params.id).single()
+  if (!dep) return res.status(404).json({ error: 'Deposit not found' })
+  if (dep.status !== 'pending') return res.status(400).json({ error: 'Already processed' })
+  await supabase.from('deposits').update({ status: 'rejected' }).eq('id', req.params.id)
+  res.json({ message: 'Deposit rejected' })
+})
+
+// GET /api/admin/withdrawals
+app.get('/api/admin/withdrawals', requireAuth, requireAdmin, async (req, res) => {
+  const { data, error } = await supabase
+    .from('withdrawals')
+    .select('*, user:users(id, username)')
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ withdrawals: data || [] })
+})
+
+// POST /api/admin/withdrawals/:id/complete
+app.post('/api/admin/withdrawals/:id/complete', requireAuth, requireAdmin, async (req, res) => {
+  const { data: w } = await supabase.from('withdrawals').select('status').eq('id', req.params.id).single()
+  if (!w) return res.status(404).json({ error: 'Not found' })
+  if (w.status !== 'pending') return res.status(400).json({ error: 'Already processed' })
+  await supabase.from('withdrawals').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', req.params.id)
+  res.json({ message: 'Marked as completed' })
+})
+
+// POST /api/admin/withdrawals/:id/reject
+app.post('/api/admin/withdrawals/:id/reject', requireAuth, requireAdmin, async (req, res) => {
+  const { data: w } = await supabase.from('withdrawals').select('*').eq('id', req.params.id).single()
+  if (!w) return res.status(404).json({ error: 'Not found' })
+  if (w.status !== 'pending') return res.status(400).json({ error: 'Already processed' })
+
+  // Refund balance
+  const { data: bal } = await supabase.from('balances').select('usd_balance').eq('user_id', w.user_id).single()
+  await supabase.from('balances').update({ usd_balance: (bal?.usd_balance ?? 0) + w.amount }).eq('user_id', w.user_id)
+  await supabase.from('withdrawals').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', req.params.id)
+  res.json({ message: 'Rejected and refunded' })
+})
+
+// GET /api/admin/me — check if current user is admin
+app.get('/api/admin/me', requireAuth, (req, res) => {
+  res.json({ isAdmin: ADMIN_USER_IDS.includes(req.user.id) })
 })
 
 // ══════════════════════════════════════════════════
