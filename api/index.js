@@ -61,8 +61,11 @@ app.get('/api/auth/login', (req, res) => {
     client_id:     OMEGACASES_CLIENT_ID || 'YOUR_CLIENT_ID',
     redirect_uri:  `${APP_URL}/api/auth/callback`,
     response_type: 'code',
-    scope:         'read_id read_username read_balance',
   })
+  // Scopes must be separate repeated params: scope=read_id&scope=read_username&...
+  params.append('scope', 'read_id')
+  params.append('scope', 'read_username')
+  params.append('scope', 'read_balance')
   res.redirect(`${OMEGACASES_OAUTH_URL}?${params}`)
 })
 
