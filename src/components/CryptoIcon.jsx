@@ -3,10 +3,11 @@ import { getCurrency } from '@/lib/utils'
 const LOGO_URLS = {
   BTC:  'https://assets.coingecko.com/coins/images/1/thumb/bitcoin.png',
   ETH:  'https://assets.coingecko.com/coins/images/279/thumb/ethereum.png',
-  LTC:  'https://assets.coingecko.com/coins/images/2/thumb/litecoin.png',
   SOL:  'https://assets.coingecko.com/coins/images/4128/thumb/solana.png',
   USDT: 'https://assets.coingecko.com/coins/images/325/thumb/Tether.png',
-  XRP:  'https://assets.coingecko.com/coins/images/44/thumb/xrp-symbol-white-128.png',
+  USDC: 'https://assets.coingecko.com/coins/images/6319/standard/USDC.png?1769615602',
+  LTC:  'https://assets.coingecko.com/coins/images/2/thumb/litecoin.png',
+  BCH:  'https://assets.coingecko.com/coins/images/780/standard/bitcoin-cash-circle.png?1696501932',
 }
 
 export function CryptoIcon({ symbol, size = 28, className = '' }) {

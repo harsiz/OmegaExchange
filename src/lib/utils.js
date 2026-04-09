@@ -6,12 +6,13 @@ export function cn(...inputs) {
 }
 
 export const CURRENCIES = [
-  { symbol: 'BTC',  name: 'Bitcoin',  color: '#F7931A', bgColor: '#F7931A20' },
-  { symbol: 'ETH',  name: 'Ethereum', color: '#627EEA', bgColor: '#627EEA20' },
-  { symbol: 'SOL',  name: 'Solana',   color: '#9945FF', bgColor: '#9945FF20' },
-  { symbol: 'USDT', name: 'Tether',   color: '#26A17B', bgColor: '#26A17B20' },
-  { symbol: 'USDC', name: 'USD Coin', color: '#2775CA', bgColor: '#2775CA20' },
-  { symbol: 'LTC',  name: 'Litecoin', color: '#345D9D', bgColor: '#345D9D20' },
+  { symbol: 'BTC',  name: 'Bitcoin',      color: '#F7931A', bgColor: '#F7931A20' },
+  { symbol: 'ETH',  name: 'Ethereum',     color: '#627EEA', bgColor: '#627EEA20' },
+  { symbol: 'SOL',  name: 'Solana',       color: '#9945FF', bgColor: '#9945FF20' },
+  { symbol: 'USDT', name: 'Tether',       color: '#26A17B', bgColor: '#26A17B20' },
+  { symbol: 'USDC', name: 'USD Coin',     color: '#2775CA', bgColor: '#2775CA20' },
+  { symbol: 'LTC',  name: 'Litecoin',     color: '#345D9D', bgColor: '#345D9D20' },
+  { symbol: 'BCH',  name: 'Bitcoin Cash', color: '#8DC351', bgColor: '#8DC35120' },
 ]
 
 export const PAYMENT_METHODS = [

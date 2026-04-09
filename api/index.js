@@ -430,6 +430,33 @@ app.patch('/api/trades/:id/dispute', requireAuth, async (req, res) => {
     .single()
 
   if (error) return res.status(500).json({ error: error.message })
+
+  // Discord webhook — ping admin
+  try {
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: '<@1058838805253210172> 🚨 New dispute opened!',
+        embeds: [{
+          title: '⚠️ Trade Dispute',
+          color: 0xef4444,
+          fields: [
+            { name: 'Opened by', value: req.user.username,                                   inline: true  },
+            { name: 'Trade ID',  value: req.params.id,                                       inline: true  },
+            { name: 'Status',    value: trade.status,                                         inline: true  },
+            { name: 'Currency',  value: trade.currency || 'N/A',                              inline: true  },
+            { name: 'Amount',    value: `${trade.amount} ${trade.currency}`,                  inline: true  },
+            { name: 'USD Value', value: `$${(trade.usd_amount ?? trade.amount * trade.price).toFixed(2)}`, inline: true },
+            { name: 'Reason',    value: reason.slice(0, 1024),                                inline: false },
+          ],
+          footer: { text: 'OmegaExchange' },
+          timestamp: new Date().toISOString(),
+        }],
+      }),
+    })
+  } catch (err) { console.error('Discord dispute webhook failed:', err) }
+
   res.json({ trade: data, message: 'Dispute opened. Our team will review within 24 hours.' })
 })
 
@@ -741,6 +768,55 @@ app.post('/api/admin/withdrawals/:id/reject', requireAuth, requireAdmin, async (
 app.get('/api/admin/me', requireAuth, async (req, res) => {
   const { data: u } = await supabase.from('users').select('is_admin').eq('id', req.user.id).single()
   res.json({ isAdmin: u?.is_admin === true })
+})
+
+// GET /api/admin/disputes
+app.get('/api/admin/disputes', requireAuth, requireAdmin, async (req, res) => {
+  const { data, error } = await supabase
+    .from('disputes')
+    .select('*, trade:trades(*), opener:users!disputes_opened_by_fkey(id, username)')
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) {
+    // Fallback if FK hint doesn't work
+    const { data: d2, error: e2 } = await supabase.from('disputes').select('*, trade:trades(*)').order('created_at', { ascending: false }).limit(100)
+    if (e2) return res.status(500).json({ error: e2.message })
+    return res.json({ disputes: d2 || [] })
+  }
+  res.json({ disputes: data || [] })
+})
+
+// GET /api/admin/users — search users + balances
+app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
+  const { username } = req.query
+  let query = supabase.from('users').select('id, username, is_admin, created_at')
+  if (username) query = query.ilike('username', `%${username}%`)
+  const { data: users, error } = await query.order('created_at', { ascending: false }).limit(50)
+  if (error) return res.status(500).json({ error: error.message })
+
+  // Fetch balances for matched users
+  const ids = (users || []).map(u => u.id)
+  const { data: balances } = ids.length
+    ? await supabase.from('balances').select('user_id, usd_balance').in('user_id', ids)
+    : { data: [] }
+
+  const balMap = Object.fromEntries((balances || []).map(b => [b.user_id, b.usd_balance]))
+  const result = (users || []).map(u => ({ ...u, usd_balance: balMap[u.id] ?? 0 }))
+  res.json({ users: result })
+})
+
+// POST /api/admin/balances/set — set a user's balance by username
+app.post('/api/admin/balances/set', requireAuth, requireAdmin, async (req, res) => {
+  const { username, amount } = req.body
+  if (!username || amount === undefined) return res.status(400).json({ error: 'username and amount required' })
+  const usd = parseFloat(amount)
+  if (isNaN(usd) || usd < 0) return res.status(400).json({ error: 'Invalid amount' })
+
+  const { data: user } = await supabase.from('users').select('id, username').ilike('username', username).single()
+  if (!user) return res.status(404).json({ error: `User "${username}" not found` })
+
+  await supabase.from('balances').upsert({ user_id: user.id, usd_balance: usd }, { onConflict: 'user_id' })
+  res.json({ message: `Balance for ${user.username} set to $${usd.toFixed(2)}` })
 })
 
 // ══════════════════════════════════════════════════

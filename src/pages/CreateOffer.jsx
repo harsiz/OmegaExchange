@@ -20,6 +20,7 @@ const COINGECKO_IDS = {
   USDT: 'tether',
   USDC: 'usd-coin',
   LTC:  'litecoin',
+  BCH:  'bitcoin-cash',
 }
 
 async function fetchMarketPrice(symbol) {
