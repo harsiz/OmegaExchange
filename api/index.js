@@ -11,9 +11,9 @@ const {
   APP_URL                 = 'http://localhost:5173',
   OMEGACASES_CLIENT_ID,
   OMEGACASES_CLIENT_SECRET,
-  OMEGACASES_OAUTH_URL    = 'https://omegacases.com/oauth/authorize',
-  OMEGACASES_TOKEN_URL    = 'https://omegacases.com/oauth/token',
-  OMEGACASES_USER_URL     = 'https://omegacases.com/api/oauth/me',
+  OMEGACASES_OAUTH_URL    = 'https://www.omegacases.com/oauth/authorize',
+  OMEGACASES_TOKEN_URL    = 'https://www.omegacases.com/oauth/token',
+  OMEGACASES_USER_URL     = 'https://www.omegacases.com/api/oauth/me',
 } = process.env
 
 // Supabase — use placeholder URLs so createClient never throws at cold start.
