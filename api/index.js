@@ -227,11 +227,7 @@ app.delete('/api/offers/:id', requireAuth, async (req, res) => {
 app.get('/api/trades', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('trades')
-    .select(`
-      *,
-      buyer:users!trades_buyer_id_fkey(id, username),
-      seller:users!trades_seller_id_fkey(id, username)
-    `)
+    .select('*')
     .or(`buyer_id.eq.${req.user.id},seller_id.eq.${req.user.id}`)
     .order('created_at', { ascending: false })
 
@@ -243,12 +239,7 @@ app.get('/api/trades', requireAuth, async (req, res) => {
 app.get('/api/trades/:id', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('trades')
-    .select(`
-      *,
-      buyer:users!trades_buyer_id_fkey(id, username),
-      seller:users!trades_seller_id_fkey(id, username),
-      offer:offers(currency, payment_instructions)
-    `)
+    .select('*, offer:offers(currency, payment_instructions)')
     .eq('id', req.params.id)
     .single()
 
@@ -257,10 +248,17 @@ app.get('/api/trades/:id', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' })
   }
 
-  // Attach currency and payment instructions from offer
+  // Fetch buyer and seller usernames separately to avoid FK name issues
+  const [buyerRes, sellerRes] = await Promise.all([
+    supabase.from('users').select('id, username').eq('id', data.buyer_id).single(),
+    supabase.from('users').select('id, username').eq('id', data.seller_id).single(),
+  ])
+
   const trade = {
     ...data,
-    currency:             data.offer?.currency || 'BTC',
+    buyer:                buyerRes.data  || { id: data.buyer_id,  username: 'Unknown' },
+    seller:               sellerRes.data || { id: data.seller_id, username: 'Unknown' },
+    currency:             data.offer?.currency || data.currency || 'BTC',
     payment_instructions: data.offer?.payment_instructions || '',
   }
   res.json({ trade })
@@ -368,30 +366,21 @@ app.patch('/api/trades/:id/confirm-payment', requireAuth, async (req, res) => {
   res.json({ trade: data, message: 'Payment confirmed. Waiting for seller to release.' })
 })
 
-// PATCH /api/trades/:id/release — seller releases crypto
+// PATCH /api/trades/:id/release — seller releases crypto to buyer
 app.patch('/api/trades/:id/release', requireAuth, async (req, res) => {
-  const { data: trade } = await supabase.from('trades').select('*').eq('id', req.params.id).single()
-  if (!trade)                         return res.status(404).json({ error: 'Not found' })
-  if (trade.seller_id !== req.user.id) return res.status(403).json({ error: 'Only seller can release' })
-  if (trade.status !== 'paid')        return res.status(400).json({ error: 'Trade must be in "paid" status' })
+  const { data: trade, error: fetchErr } = await supabase.from('trades').select('*').eq('id', req.params.id).single()
+  if (fetchErr || !trade)              return res.status(404).json({ error: 'Trade not found' })
+  if (trade.seller_id !== req.user.id) return res.status(403).json({ error: 'Only the seller can release' })
+  if (trade.status !== 'paid')         return res.status(400).json({ error: `Trade status is "${trade.status}" — must be "paid" first` })
 
-  // Transfer USD to seller
-  const { data: sellerBalance } = await supabase.from('balances').select('usd_balance').eq('user_id', req.user.id).single()
-  const newSellerBal = (sellerBalance?.usd_balance ?? 0) + (trade.usd_amount || trade.amount * trade.price)
-  await supabase.from('balances').upsert({ user_id: req.user.id, usd_balance: newSellerBal }, { onConflict: 'user_id' })
+  // Pay out USD to seller
+  const { data: sellerBal } = await supabase.from('balances').select('usd_balance').eq('user_id', req.user.id).single()
+  const payout = trade.usd_amount ?? (trade.amount * trade.price)
+  await supabase.from('balances')
+    .update({ usd_balance: (sellerBal?.usd_balance ?? 0) + payout })
+    .eq('user_id', req.user.id)
 
-  // Credit crypto to buyer (tracked in DB)
-  await supabase.from('crypto_holdings').upsert({
-    user_id:  trade.buyer_id,
-    currency: trade.currency,
-  }, { onConflict: 'user_id,currency' })
-  await supabase.rpc('increment_crypto_balance', {
-    p_user_id:  trade.buyer_id,
-    p_currency: trade.currency,
-    p_amount:   trade.amount,
-  }).catch(() => {}) // RPC may not exist yet — safe to ignore
-
-  // Complete trade
+  // Mark trade complete
   const { data, error } = await supabase
     .from('trades')
     .update({ status: 'completed', escrow_locked: false, completed_at: new Date().toISOString() })
@@ -533,7 +522,7 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
   const [tradesRes, balanceRes, repRes, depositsRes] = await Promise.all([
     supabase
       .from('trades')
-      .select('*, buyer:users!trades_buyer_id_fkey(id,username), seller:users!trades_seller_id_fkey(id,username)')
+      .select('*')
       .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
       .order('created_at', { ascending: false })
       .limit(20),
