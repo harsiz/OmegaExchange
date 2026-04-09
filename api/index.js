@@ -13,7 +13,7 @@ const {
   OMEGACASES_CLIENT_SECRET,
   OMEGACASES_OAUTH_URL    = 'https://omegacases.com/oauth/authorize',
   OMEGACASES_TOKEN_URL    = 'https://omegacases.com/oauth/token',
-  OMEGACASES_USER_URL     = 'https://omegacases.com/api/user',
+  OMEGACASES_USER_URL     = 'https://omegacases.com/api/oauth/me',
 } = process.env
 
 // Supabase — use placeholder URLs so createClient never throws at cold start.
@@ -96,10 +96,8 @@ app.get('/api/auth/callback', async (req, res) => {
       accessToken = tokenData.access_token
     }
 
-    // Fetch user info
-    const userRes  = await fetch(OMEGACASES_USER_URL, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    // Fetch user info — OmegaCases uses ?token= query param
+    const userRes  = await fetch(`${OMEGACASES_USER_URL}?token=${accessToken}`)
     const rawBody = await userRes.text()
     console.log('[auth/callback] user info status:', userRes.status, 'body:', rawBody.slice(0, 300))
 
