@@ -29,15 +29,13 @@ export default function OfferCard({ offer, requestedAmount }) {
     try {
       const amount = requestedAmount || offer.min_amount
       const { data } = await tradesApi.create({ offer_id: offer.id, amount })
-      navigate(`/trade/${data.trade.id}`)
+      const tradeId = data?.trade?.id
+      if (!tradeId) throw new Error('Trade created but no ID returned — check My Trades.')
+      navigate(`/trade/${tradeId}`)
     } catch (err) {
-      toast({
-        title:       'Failed to start trade',
-        description: err.response?.data?.error || 'Please try again.',
-        variant:     'destructive',
-      })
-    } finally {
-      setLoading(false)
+      const msg = err.response?.data?.error || err.message || 'Please try again.'
+      toast({ title: 'Failed to start trade', description: msg, variant: 'destructive' })
+      setLoading(false) // only reset on error — on success the component unmounts via navigate
     }
   }
 

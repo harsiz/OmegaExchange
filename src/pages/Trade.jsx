@@ -62,13 +62,14 @@ export default function TradePage() {
       ])
       setTrade(tradeRes.data.trade)
       setMessages(msgRes.data.messages || [])
-    } catch {
-      toast({ title: 'Trade not found', variant: 'destructive' })
-      navigate('/dashboard')
+    } catch (err) {
+      // Don't navigate away — show the error inline so the user knows what happened
+      console.error('fetchTrade error:', err)
+      if (!trade) toast({ title: 'Could not load trade', description: err.response?.data?.error || err.message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [id, navigate])
+  }, [id]) // removed navigate from deps so failed polls don't bounce the user
 
   useEffect(() => { fetchTrade() }, [fetchTrade])
 
