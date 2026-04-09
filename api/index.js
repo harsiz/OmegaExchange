@@ -76,7 +76,7 @@ app.get('/api/auth/callback', (req, res) => {
   if (!ocToken) return res.redirect(`${APP_URL}/auth/callback?error=no_token`)
 
   // Pass OmegaCases token to frontend — the browser will call /api/oauth/me directly
-  res.redirect(`${APP_URL}/auth/callback?oc_token=${encodeURIComponent(ocToken)}`)
+  res.redirect(`${APP_URL}/auth/callback?token=${encodeURIComponent(ocToken)}`)
 })
 
 // POST /api/auth/exchange — frontend sends OmegaCases user data after browser-side fetch; we issue a JWT

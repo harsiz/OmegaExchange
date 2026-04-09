@@ -15,9 +15,14 @@ export function AuthProvider({ children }) {
       const { data } = await authApi.me()
       setUserState(data.user)
       setUser(data.user)
-    } catch {
-      clearAuth()
-      setUserState(null)
+    } catch (err) {
+      // Only clear auth on 401 (invalid/expired token), not on network/server errors
+      const status = err?.response?.status
+      if (status === 401) {
+        clearAuth()
+        setUserState(null)
+      }
+      // On 500/network errors, keep the user logged in using cached state
     } finally {
       setLoading(false)
     }

@@ -13,9 +13,8 @@ export default function AuthCallback() {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    const ocToken = params.get('oc_token')  // OmegaCases access token (browser-side fetch required)
-    const jwt     = params.get('token')     // Already-issued JWT (legacy / fallback)
-    const error   = params.get('error')
+    const token = params.get('token')
+    const error = params.get('error')
 
     if (error) {
       setStatus('error')
@@ -23,10 +22,16 @@ export default function AuthCallback() {
       return
     }
 
-    // Legacy path: already have a JWT
-    if (jwt) {
+    if (!token) {
+      setStatus('error')
+      setMessage('No token received. Please try logging in again.')
+      return
+    }
+
+    // If it looks like a JWT (header.payload.signature), use it directly
+    if (token.includes('.')) {
       try {
-        loginWithToken(jwt)
+        loginWithToken(token)
         setStatus('success')
         setTimeout(() => navigate('/', { replace: true }), 1200)
       } catch {
@@ -36,16 +41,11 @@ export default function AuthCallback() {
       return
     }
 
-    if (!ocToken) {
-      setStatus('error')
-      setMessage('No token received. Please try logging in again.')
-      return
-    }
-
-    // Browser-side: fetch OmegaCases user info (works because browser has OmegaCases cookies / trusted IP)
+    // Otherwise it's a raw OmegaCases token — browser fetches user info directly
+    // (browser has OmegaCases session cookies, Vercel IPs are blocked by Cloudflare)
     async function doExchange() {
       try {
-        const meRes = await fetch(`${OC_ME_URL}?token=${encodeURIComponent(ocToken)}`)
+        const meRes = await fetch(`${OC_ME_URL}?token=${encodeURIComponent(token)}`)
         if (!meRes.ok) throw new Error(`OmegaCases returned ${meRes.status}`)
 
         const userData = await meRes.json()
@@ -56,11 +56,11 @@ export default function AuthCallback() {
           throw new Error(`Could not read user info: ${JSON.stringify(userData)}`)
         }
 
-        // Send to our backend to issue a JWT
+        // Send to our backend to issue a signed JWT
         const exchangeRes = await fetch('/api/auth/exchange', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ oc_token: ocToken, user_id: userId, username }),
+          body:    JSON.stringify({ oc_token: token, user_id: userId, username }),
         })
         const exchangeData = await exchangeRes.json()
         if (!exchangeRes.ok || !exchangeData.token) {
