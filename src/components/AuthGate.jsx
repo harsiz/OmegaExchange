@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react'
 import { loginWithOmegaCases } from '@/lib/auth'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
-import OmegaCasesText from '@/components/OmegaCasesText'
+import OmegaExchangeText from '@/components/OmegaExchangeText'
 
 /**
  * Blocks the entire app until the user is authenticated.
@@ -38,7 +38,7 @@ export default function AuthGate({ children }) {
           {/* Logo */}
           <div className="flex items-center gap-3 mb-10">
             <img src="/oc-logo.webp" alt="OmegaExchange" className="h-12 w-12 object-contain" />
-            <span className="font-brand text-3xl font-bold text-white">OmegaExchange</span>
+            <OmegaExchangeText className="text-3xl" />
           </div>
 
           {/* Card */}
@@ -47,8 +47,8 @@ export default function AuthGate({ children }) {
               Sign in to continue
             </h1>
             <p className="text-sm text-slate-500 mb-8 leading-relaxed">
-              OmegaExchange uses <OmegaCasesText className="font-medium" /> for authentication.
-              Sign in with your <OmegaCasesText /> account to buy, sell, and trade crypto safely.
+              OmegaExchange uses OmegaCases for authentication.
+              Sign in with your OmegaCases account to buy, sell, and trade crypto safely.
             </p>
 
             <Button
@@ -56,12 +56,12 @@ export default function AuthGate({ children }) {
               className="w-full h-12 text-base font-bold gap-2"
             >
               <img src="/oc-logo.webp" alt="" className="h-5 w-5 object-contain brightness-0 invert" />
-              Sign in with <OmegaCasesText className="font-bold" />
+              Sign in with OmegaCases
             </Button>
 
             <p className="text-[11px] text-slate-400 mt-5 leading-relaxed">
               By signing in you agree to our Terms of Use and Privacy Policy.
-              Your <OmegaCasesText /> account is required — no separate sign-up needed.
+              Your OmegaCases account is required — no separate sign-up needed.
             </p>
           </div>
 

@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { loginWithOmegaCases } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import OmegaExchangeText from '@/components/OmegaExchangeText'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,9 +37,7 @@ export default function Navbar() {
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2.5 group">
               <img src="/oc-logo.webp" alt="OmegaExchange" className="h-8 w-8 object-contain" />
-              <span className="font-brand text-xl font-bold text-white group-hover:text-brand-300 transition-colors">
-                OmegaExchange
-              </span>
+              <OmegaExchangeText className="text-xl" />
             </Link>
 
             {/* Desktop nav links */}

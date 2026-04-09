@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Shield, Lock, Zap } from 'lucide-react'
-import OmegaCasesText from '@/components/OmegaCasesText'
+import OmegaExchangeText from '@/components/OmegaExchangeText'
 
 export default function Footer() {
   return (
@@ -12,7 +12,7 @@ export default function Footer() {
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-3">
               <img src="/oc-logo.webp" alt="" className="h-7 w-7" />
-              <span className="font-brand text-lg font-bold text-white">OmegaExchange</span>
+              <OmegaExchangeText className="text-lg" />
             </Link>
             <p className="text-sm text-slate-500 leading-relaxed">
               The safest peer-to-peer crypto marketplace. Trade with confidence.
@@ -81,7 +81,7 @@ export default function Footer() {
 
         <div className="border-t border-navy-800 mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-slate-600">© 2026 OmegaExchange. All rights reserved.</p>
-          <p className="text-xs text-slate-600">Powered by <OmegaCasesText /> OAuth · Supabase · Tatum</p>
+          <p className="text-xs text-slate-600">Powered by OmegaCases OAuth · Supabase · Tatum</p>
         </div>
       </div>
     </footer>
