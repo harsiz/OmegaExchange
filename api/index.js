@@ -100,7 +100,16 @@ app.get('/api/auth/callback', async (req, res) => {
     const userRes  = await fetch(OMEGACASES_USER_URL, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
-    const userData = await userRes.json()
+    const rawBody = await userRes.text()
+    console.log('[auth/callback] user info status:', userRes.status, 'body:', rawBody.slice(0, 300))
+
+    let userData
+    try {
+      userData = JSON.parse(rawBody)
+    } catch {
+      throw new Error(`User info endpoint returned non-JSON (status ${userRes.status}): ${rawBody.slice(0, 200)}`)
+    }
+
     const userId   = String(userData.id || userData.userid || userData.user_id || '')
     const username = userData.username || userData.name
 
