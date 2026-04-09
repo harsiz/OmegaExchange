@@ -100,13 +100,10 @@ app.get('/api/auth/callback', async (req, res) => {
     console.log('[auth/callback] query params:', JSON.stringify(req.query))
 
     // Fetch user info — OmegaCases uses ?token= query param
-    const meUrl = `https://www.omegacases.com/api/oauth/me?token=${accessToken}&client_id=${OMEGACASES_CLIENT_ID}`
+    const meUrl = `https://www.omegacases.com/api/oauth/me?token=${accessToken}`
     console.log('[auth/callback] fetching:', meUrl.replace(accessToken, '[TOKEN]'))
     const userRes  = await fetch(meUrl, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'OmegaExchange/1.0',
-      },
+      headers: { 'Accept': 'application/json' },
     })
     const rawBody = await userRes.text()
     console.log('[auth/callback] status:', userRes.status, 'body:', rawBody.slice(0, 500))
