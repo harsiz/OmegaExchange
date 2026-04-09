@@ -58,50 +58,30 @@ function requireAuth(req, res, next) {
 // GET /api/auth/login — redirect to OmegaCases OAuth
 app.get('/api/auth/login', (req, res) => {
   const params = new URLSearchParams({
-    client_id:     OMEGACASES_CLIENT_ID || 'YOUR_CLIENT_ID',
-    redirect_uri:  `${APP_URL}/api/auth/callback`,
-    response_type: 'code',
+    client_id:    OMEGACASES_CLIENT_ID || 'YOUR_CLIENT_ID',
+    redirect_uri: `${APP_URL}/api/auth/callback`,
+    scope:        'read_id,read_username,read_balance',
+    state:        Math.random().toString(36).slice(2),
   })
-  // Scopes must be separate repeated params: scope=read_id&scope=read_username&...
-  params.append('scope', 'read_id')
-  params.append('scope', 'read_username')
-  params.append('scope', 'read_balance')
   res.redirect(`${OMEGACASES_OAUTH_URL}?${params}`)
 })
 
-// GET /api/auth/callback — receive OmegaCases token, pass to frontend for browser-side user fetch
-// OmegaCases blocks server-to-server requests (Cloudflare protection), so we let the browser call /api/oauth/me
-app.get('/api/auth/callback', (req, res) => {
-  const { token, code, error } = req.query
-  if (error) return res.redirect(`${APP_URL}/auth/callback?error=${encodeURIComponent(error)}`)
+// GET /api/auth/callback — OmegaCases sends token + user_id + username in the redirect
+app.get('/api/auth/callback', async (req, res) => {
+  const { token, user_id, username, error } = req.query
 
-  const ocToken = token || code
-  if (!ocToken) return res.redirect(`${APP_URL}/auth/callback?error=no_token`)
-
-  // Pass OmegaCases token to frontend — the browser will call /api/oauth/me directly
-  res.redirect(`${APP_URL}/auth/callback?token=${encodeURIComponent(ocToken)}`)
-})
-
-// POST /api/auth/exchange — frontend sends OmegaCases user data after browser-side fetch; we issue a JWT
-app.post('/api/auth/exchange', async (req, res) => {
-  const { oc_token, user_id, username } = req.body
-
-  if (!oc_token || !user_id || !username) {
-    return res.status(400).json({ error: 'Missing oc_token, user_id, or username' })
-  }
-
-  // Basic token format validation (OmegaCases tokens are 64-char hex)
-  if (!/^[0-9a-f]{40,128}$/i.test(oc_token)) {
-    return res.status(400).json({ error: 'Invalid token format' })
-  }
+  if (error)    return res.redirect(`${APP_URL}/auth/callback?error=${encodeURIComponent(error)}`)
+  if (!token)   return res.redirect(`${APP_URL}/auth/callback?error=no_token`)
+  if (!user_id) return res.redirect(`${APP_URL}/auth/callback?error=no_user_id`)
 
   try {
     const userId = String(user_id)
+    const uname  = String(username)
 
     // Upsert user in DB
     const { error: upsertErr } = await supabase
       .from('users')
-      .upsert({ id: userId, username }, { onConflict: 'id', ignoreDuplicates: false })
+      .upsert({ id: userId, username: uname }, { onConflict: 'id', ignoreDuplicates: false })
     if (upsertErr) console.error('Upsert error:', upsertErr)
 
     // Ensure balance and reputation rows exist
@@ -111,12 +91,12 @@ app.post('/api/auth/exchange', async (req, res) => {
       { onConflict: 'user_id', ignoreDuplicates: true },
     )
 
-    // Issue JWT
-    const jwtToken = jwt.sign({ sub: userId, username }, JWT_SECRET, { expiresIn: '30d' })
-    res.json({ token: jwtToken })
+    // Issue our own signed JWT
+    const jwtToken = jwt.sign({ sub: userId, username: uname }, JWT_SECRET, { expiresIn: '30d' })
+    res.redirect(`${APP_URL}/auth/callback?token=${jwtToken}`)
   } catch (err) {
-    console.error('Exchange error:', err)
-    res.status(500).json({ error: err.message })
+    console.error('OAuth callback error:', err)
+    res.redirect(`${APP_URL}/auth/callback?error=${encodeURIComponent(err.message)}`)
   }
 })
 

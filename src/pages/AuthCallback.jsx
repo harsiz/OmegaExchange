@@ -3,8 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
-const OC_ME_URL = 'https://www.omegacases.com/api/oauth/me'
-
 export default function AuthCallback() {
   const navigate           = useNavigate()
   const [params]           = useSearchParams()
@@ -28,56 +26,14 @@ export default function AuthCallback() {
       return
     }
 
-    // If it looks like a JWT (header.payload.signature), use it directly
-    if (token.includes('.')) {
-      try {
-        loginWithToken(token)
-        setStatus('success')
-        setTimeout(() => navigate('/', { replace: true }), 1200)
-      } catch {
-        setStatus('error')
-        setMessage('Failed to process login token. Please try again.')
-      }
-      return
+    try {
+      loginWithToken(token)
+      setStatus('success')
+      setTimeout(() => navigate('/', { replace: true }), 1200)
+    } catch {
+      setStatus('error')
+      setMessage('Failed to process login. Please try again.')
     }
-
-    // Otherwise it's a raw OmegaCases token — browser fetches user info directly
-    // (browser has OmegaCases session cookies, Vercel IPs are blocked by Cloudflare)
-    async function doExchange() {
-      try {
-        const meRes = await fetch(`${OC_ME_URL}?token=${encodeURIComponent(token)}`)
-        if (!meRes.ok) throw new Error(`OmegaCases returned ${meRes.status}`)
-
-        const userData = await meRes.json()
-        const userId   = String(userData.user_id || userData.id || userData.userid || '')
-        const username = userData.username || userData.name
-
-        if (!userId || !username) {
-          throw new Error(`Could not read user info: ${JSON.stringify(userData)}`)
-        }
-
-        // Send to our backend to issue a signed JWT
-        const exchangeRes = await fetch('/api/auth/exchange', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ oc_token: token, user_id: userId, username }),
-        })
-        const exchangeData = await exchangeRes.json()
-        if (!exchangeRes.ok || !exchangeData.token) {
-          throw new Error(exchangeData.error || 'Exchange failed')
-        }
-
-        loginWithToken(exchangeData.token)
-        setStatus('success')
-        setTimeout(() => navigate('/', { replace: true }), 1200)
-      } catch (err) {
-        console.error('Auth exchange error:', err)
-        setStatus('error')
-        setMessage(err.message || 'Sign-in failed. Please try again.')
-      }
-    }
-
-    doExchange()
   }, [params, loginWithToken, navigate])
 
   return (
