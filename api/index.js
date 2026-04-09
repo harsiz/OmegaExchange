@@ -65,37 +65,45 @@ app.get('/api/auth/login', (req, res) => {
   res.redirect(`${OMEGACASES_OAUTH_URL}?${params}`)
 })
 
-// GET /api/auth/callback — exchange code for user info, issue JWT
+// GET /api/auth/callback — exchange code (or token) for user info, issue JWT
 app.get('/api/auth/callback', async (req, res) => {
-  const { code, error } = req.query
+  const { code, token: directToken, error } = req.query
   if (error) return res.redirect(`${APP_URL}/auth/callback?error=${error}`)
-  if (!code)  return res.redirect(`${APP_URL}/auth/callback?error=no_code`)
+  if (!code && !directToken) return res.redirect(`${APP_URL}/auth/callback?error=no_code`)
 
   try {
-    // Exchange code for access token
-    const tokenRes = await fetch(OMEGACASES_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id:     OMEGACASES_CLIENT_ID,
-        client_secret: OMEGACASES_CLIENT_SECRET,
-        code,
-        redirect_uri:  `${APP_URL}/api/auth/callback`,
-        grant_type:    'authorization_code',
-      }),
-    })
-    const tokenData = await tokenRes.json()
-    if (!tokenData.access_token) throw new Error('No access token')
+    let accessToken
+
+    if (directToken) {
+      // OmegaCases passed the token directly in the redirect
+      accessToken = directToken
+    } else {
+      // Standard authorization code exchange
+      const tokenRes = await fetch(OMEGACASES_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id:     OMEGACASES_CLIENT_ID,
+          client_secret: OMEGACASES_CLIENT_SECRET,
+          code,
+          redirect_uri:  `${APP_URL}/api/auth/callback`,
+          grant_type:    'authorization_code',
+        }),
+      })
+      const tokenData = await tokenRes.json()
+      if (!tokenData.access_token) throw new Error('No access token from OmegaCases')
+      accessToken = tokenData.access_token
+    }
 
     // Fetch user info
     const userRes  = await fetch(OMEGACASES_USER_URL, {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     })
     const userData = await userRes.json()
-    const userId   = String(userData.id || userData.userid)
-    const username = userData.username
+    const userId   = String(userData.id || userData.userid || userData.user_id || '')
+    const username = userData.username || userData.name
 
-    if (!userId || !username) throw new Error('Missing user data')
+    if (!userId || !username) throw new Error(`Missing user data: ${JSON.stringify(userData)}`)
 
     // Upsert user in DB
     const { error: upsertErr } = await supabase
