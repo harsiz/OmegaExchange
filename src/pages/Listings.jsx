@@ -46,14 +46,17 @@ export default function Listings() {
 
   useEffect(() => { fetchOffers() }, [fetchOffers])
 
-  // Sort: sellers who can fulfill first, then others
+  // Sort: sellers who can fulfill the USD amount first, then others
+  // available_amount is in crypto — multiply by price to get USD capacity
+  function canFulfill(offer) {
+    if (!requestedAmount) return true
+    const availableUSD = (offer.available_amount || 0) * (offer.price || 1)
+    return availableUSD >= requestedAmount && offer.min_amount <= requestedAmount && offer.max_amount >= requestedAmount
+  }
+
   const sortedOffers = [...offers].sort((a, b) => {
-    const aOk = requestedAmount
-      ? a.available_amount >= requestedAmount && a.min_amount <= requestedAmount && a.max_amount >= requestedAmount
-      : true
-    const bOk = requestedAmount
-      ? b.available_amount >= requestedAmount && b.min_amount <= requestedAmount && b.max_amount >= requestedAmount
-      : true
+    const aOk = canFulfill(a)
+    const bOk = canFulfill(b)
     if (aOk && !bOk) return -1
     if (!aOk && bOk) return 1
     return a.price - b.price // lowest price first within each group
@@ -177,20 +180,14 @@ export default function Listings() {
         ) : (
           <div className="space-y-3">
             {/* Label: can fulfill */}
-            {requestedAmount > 0 && sortedOffers.some(o =>
-              o.available_amount >= requestedAmount && o.min_amount <= requestedAmount && o.max_amount >= requestedAmount
-            ) && (
+            {requestedAmount > 0 && sortedOffers.some(o => canFulfill(o)) && (
               <p className="text-xs text-emerald-400 font-semibold uppercase tracking-wide px-1">
                 ✓ Can fulfill your order
               </p>
             )}
             {sortedOffers.map((offer, idx) => {
-              const prevOk = idx > 0 && requestedAmount > 0
-                ? sortedOffers[idx - 1].available_amount >= requestedAmount
-                : false
-              const thisOk = requestedAmount > 0
-                ? offer.available_amount >= requestedAmount && offer.min_amount <= requestedAmount && offer.max_amount >= requestedAmount
-                : true
+              const prevOk = idx > 0 && requestedAmount > 0 ? canFulfill(sortedOffers[idx - 1]) : false
+              const thisOk = canFulfill(offer)
 
               return (
                 <div key={offer.id}>

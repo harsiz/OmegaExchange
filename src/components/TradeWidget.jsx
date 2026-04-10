@@ -3,28 +3,42 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowDownUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CryptoIcon } from '@/components/CryptoIcon'
-import { CURRENCIES, formatUSD } from '@/lib/utils'
+import { CURRENCIES } from '@/lib/utils'
 
-// Mock prices (replace with real API in production)
-const MOCK_PRICES = { BTC: 82400, ETH: 1840, LTC: 88, SOL: 120, USDT: 1, XRP: 2.1 }
-
-const PAYMENT_ICONS = [
-  { label: 'Visa/MC',   img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/2560px-Visa_Inc._logo.svg.png' },
-  { label: 'PayPal',    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/2560px-PayPal.svg.png' },
-  { label: 'Revolut',   img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Revolut_logo_2021.svg/2560px-Revolut_logo_2021.svg.png' },
-  { label: 'Cashapp',   img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Square_Cash_app_logo.svg/2048px-Square_Cash_app_logo.svg.png' },
-]
+const COINGECKO_IDS = {
+  BTC:  'bitcoin',
+  ETH:  'ethereum',
+  SOL:  'solana',
+  USDT: 'tether',
+  USDC: 'usd-coin',
+  LTC:  'litecoin',
+  BCH:  'bitcoin-cash',
+}
 
 export default function TradeWidget({ defaultTab = 'buy' }) {
   const navigate = useNavigate()
-  const [tab,          setTab]          = useState(defaultTab) // 'buy' | 'sell'
-  const [sendAmount,   setSendAmount]   = useState('500')
+  const [tab,          setTab]          = useState(defaultTab)
+  const [sendAmount,   setSendAmount]   = useState('10')
   const [getCurrency,  setGetCurrency]  = useState('BTC')
-  const [sendCurrency, setSendCurrency] = useState('USD')
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [prices,       setPrices]       = useState({})
 
-  const price = MOCK_PRICES[getCurrency] || 1
-  const cryptoAmount = parseFloat(sendAmount || 0) / price
+  useEffect(() => {
+    const ids = Object.values(COINGECKO_IDS).join(',')
+    fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`)
+      .then(r => r.json())
+      .then(data => {
+        const p = {}
+        for (const [sym, id] of Object.entries(COINGECKO_IDS)) {
+          p[sym] = data[id]?.usd ?? 0
+        }
+        setPrices(p)
+      })
+      .catch(() => {})
+  }, [])
+
+  const price = prices[getCurrency] || 0
+  const cryptoAmount = price > 0 ? parseFloat(sendAmount || 0) / price : 0
 
   function handleSubmit() {
     const params = new URLSearchParams({
@@ -122,18 +136,6 @@ export default function TradeWidget({ defaultTab = 'buy' }) {
                 ≈ {cryptoAmount > 0 ? cryptoAmount.toFixed(6).replace(/\.?0+$/, '') : '—'}
               </span>
             </div>
-          </div>
-        </div>
-
-        {/* Payment methods */}
-        <div>
-          <p className="text-xs text-slate-500 mb-2 font-medium">Payment methods</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            {PAYMENT_ICONS.map(p => (
-              <div key={p.label} className="h-7 px-2 rounded-full border border-slate-200 flex items-center justify-center bg-white">
-                <span className="text-xs font-semibold text-slate-600">{p.label}</span>
-              </div>
-            ))}
           </div>
         </div>
 

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Shield, Zap, Users, ArrowRight, TrendingUp, Lock } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -7,8 +8,38 @@ import { CryptoIcon } from '@/components/CryptoIcon'
 import { Button } from '@/components/ui/button'
 import { CURRENCIES, formatUSD } from '@/lib/utils'
 
-const MOCK_PRICES = { BTC: 82400, ETH: 1840, LTC: 88, SOL: 120, USDT: 1, XRP: 2.1 }
-const MOCK_CHANGES = { BTC: +2.4, ETH: -0.8, LTC: +1.2, SOL: +5.3, USDT: 0, XRP: +3.1 }
+const COINGECKO_IDS = {
+  BTC:  'bitcoin',
+  ETH:  'ethereum',
+  SOL:  'solana',
+  USDT: 'tether',
+  USDC: 'usd-coin',
+  LTC:  'litecoin',
+  BCH:  'bitcoin-cash',
+}
+
+function useLivePrices() {
+  const [prices,  setPrices]  = useState({})
+  const [changes, setChanges] = useState({})
+
+  useEffect(() => {
+    const ids = Object.values(COINGECKO_IDS).join(',')
+    fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`)
+      .then(r => r.json())
+      .then(data => {
+        const p = {}, c = {}
+        for (const [sym, id] of Object.entries(COINGECKO_IDS)) {
+          p[sym] = data[id]?.usd ?? 0
+          c[sym] = parseFloat((data[id]?.usd_24h_change ?? 0).toFixed(2))
+        }
+        setPrices(p)
+        setChanges(c)
+      })
+      .catch(() => {})
+  }, [])
+
+  return { prices, changes }
+}
 
 const FEATURES = [
   {
@@ -34,14 +65,16 @@ const FEATURES = [
 ]
 
 const STEPS = [
-  { num: '01', title: 'Deposit Funds',      desc: 'Add USD to your account via PayPal or gift cards.' },
-  { num: '02', title: 'Find an Offer',      desc: 'Browse listings sorted by best price. Filter by coin and payment method.' },
-  { num: '03', title: 'Start a Trade',      desc: "Click Buy — the seller's crypto is locked in escrow instantly." },
-  { num: '04', title: 'Send Payment',       desc: 'Follow the payment instructions and confirm once sent.' },
-  { num: '05', title: 'Receive Crypto',     desc: 'Seller releases funds. Crypto credited to your account immediately.' },
+  { num: '01', title: 'Deposit Funds',          desc: 'Add USD to your on-site balance via the deposit page.' },
+  { num: '02', title: 'Find an Offer',          desc: 'Browse listings sorted by best price. Filter by coin.' },
+  { num: '03', title: 'Start a Trade',          desc: 'Click Buy — your USD is locked in escrow instantly.' },
+  { num: '04', title: 'Seller Sends Crypto',    desc: 'The seller sends crypto to your wallet and marks it sent.' },
+  { num: '05', title: 'Confirm & Get Paid',     desc: 'You confirm receipt — escrow releases USD to the seller.' },
 ]
 
 export default function Home() {
+  const { prices, changes } = useLivePrices()
+
   return (
     <div className="hero-bg min-h-screen">
       {/* Hero */}
@@ -83,19 +116,6 @@ export default function Home() {
                 </Link>
               </div>
 
-              {/* Social proof */}
-              <div className="flex items-center gap-6 mt-10 pt-8 border-t border-white/5">
-                {[
-                  { value: '12K+',  label: 'Traders' },
-                  { value: '$2.4M', label: 'Volume' },
-                  { value: '99.1%', label: 'Success rate' },
-                ].map(s => (
-                  <div key={s.label}>
-                    <p className="text-2xl font-bold text-white font-heading">{s.value}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
-                  </div>
-                ))}
-              </div>
             </motion.div>
 
             {/* Right: widget */}
@@ -115,17 +135,22 @@ export default function Home() {
       <section className="border-y border-navy-800 bg-navy-900/40 py-4 overflow-hidden">
         <div className="flex gap-8 px-4 overflow-x-auto no-scrollbar">
           {CURRENCIES.map(c => {
-            const change = MOCK_CHANGES[c.symbol] ?? 0
+            const price  = prices[c.symbol]
+            const change = changes[c.symbol] ?? 0
             return (
               <div key={c.symbol} className="flex items-center gap-2.5 flex-shrink-0">
                 <CryptoIcon symbol={c.symbol} size={22} />
                 <div>
                   <span className="text-sm font-bold text-white">{c.symbol}</span>
-                  <span className="text-xs text-slate-400 ml-1.5">{formatUSD(MOCK_PRICES[c.symbol])}</span>
+                  <span className="text-xs text-slate-400 ml-1.5">
+                    {price ? formatUSD(price) : '—'}
+                  </span>
                 </div>
-                <span className={`text-xs font-semibold ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {change >= 0 ? '+' : ''}{change}%
-                </span>
+                {price > 0 && (
+                  <span className={`text-xs font-semibold ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {change >= 0 ? '+' : ''}{change}%
+                  </span>
+                )}
               </div>
             )
           })}

@@ -17,8 +17,10 @@ export default function OfferCard({ offer, requestedAmount }) {
   const [loading, setLoading] = useState(false)
 
   const rate        = getCompletionRate(offer.reputation)
-  const canFulfill  = requestedAmount
-    ? offer.available_amount >= requestedAmount && offer.min_amount <= requestedAmount && offer.max_amount >= requestedAmount
+  // requestedAmount is in USD; available_amount is in crypto — convert to USD for comparison
+  const availableUSD = (offer.available_amount || 0) * (offer.price || 1)
+  const canFulfill   = requestedAmount
+    ? availableUSD >= requestedAmount && offer.min_amount <= requestedAmount && offer.max_amount >= requestedAmount
     : true
 
   async function handleBuy() {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Shield, Send, AlertTriangle, CheckCircle, Clock,
-  ArrowRight, Copy, Check, RefreshCw,
+  Copy, Check, RefreshCw,
 } from 'lucide-react'
 import { tradesApi } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
@@ -15,15 +15,19 @@ import {
   DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import { CryptoIcon } from '@/components/CryptoIcon'
-import { formatUSD, formatCrypto, getStatusLabel, timeAgo, shortenId } from '@/lib/utils'
+import { formatUSD, formatCrypto, timeAgo, shortenId } from '@/lib/utils'
 import { toast } from '@/hooks/useToast'
 
-const STATUS_STEPS = ['pending', 'paid', 'completed']
+const STATUS_STEPS = [
+  { key: 'pending',   label: 'Awaiting Seller' },
+  { key: 'paid',      label: 'Crypto Sent' },
+  { key: 'completed', label: 'Completed' },
+]
 
-function StatusStep({ step, current }) {
-  const steps = ['pending', 'paid', 'completed']
-  const idx    = steps.indexOf(step)
-  const curIdx = steps.indexOf(current)
+function StatusStep({ step, label, current }) {
+  const keys   = STATUS_STEPS.map(s => s.key)
+  const idx    = keys.indexOf(step)
+  const curIdx = keys.indexOf(current)
   const done   = curIdx > idx
   const active = curIdx === idx
 
@@ -33,7 +37,7 @@ function StatusStep({ step, current }) {
         ${done ? 'bg-emerald-500 text-white' : active ? 'bg-brand-600 text-white ring-2 ring-brand-400/40' : 'bg-navy-700 text-slate-500'}`}>
         {done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
       </div>
-      <span className="capitalize">{getStatusLabel(step)}</span>
+      <span>{label}</span>
     </div>
   )
 }
@@ -131,9 +135,9 @@ export default function TradePage() {
 
   if (!trade) return null
 
-  const isBuyer  = user?.id === trade.buyer_id
-  const isSeller = user?.id === trade.seller_id
-  const isActive = ['pending', 'paid'].includes(trade.status)
+  const isBuyer   = user?.id === trade.buyer_id
+  const isSeller  = user?.id === trade.seller_id
+  const isActive  = ['pending', 'paid'].includes(trade.status)
 
   return (
     <div className="page-bg min-h-screen pt-20">
@@ -227,46 +231,56 @@ export default function TradePage() {
             <div className="glass-card rounded-xl p-5">
               <h2 className="font-heading font-semibold text-white mb-4">Progress</h2>
               <div className="space-y-3">
-                {['pending', 'paid', 'completed'].map(s => (
-                  <StatusStep key={s} step={s} current={trade.status} />
+                {STATUS_STEPS.map(s => (
+                  <StatusStep key={s.key} step={s.key} label={s.label} current={trade.status} />
                 ))}
               </div>
             </div>
 
-            {/* Payment instructions */}
-            {isBuyer && trade.status === 'pending' && trade.payment_instructions && (
-              <div className="glass-card rounded-xl p-5">
-                <h2 className="font-heading font-semibold text-white mb-3 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-yellow-400" /> Payment Instructions
-                </h2>
-                <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-                  {trade.payment_instructions}
-                </p>
+            {/* Flow info banner */}
+            {isActive && (
+              <div className="glass-card rounded-xl p-4 border border-brand-500/20 bg-brand-600/5">
+                <p className="text-xs text-brand-300 font-semibold mb-1">How this trade works</p>
+                {trade.status === 'pending' ? (
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    {isSeller
+                      ? 'Send the crypto to the buyer\'s wallet, then click "I\'ve Sent the Crypto" below.'
+                      : 'Waiting for the seller to send your crypto. You\'ll be notified when it\'s sent.'}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    {isBuyer
+                      ? 'The seller has sent your crypto. Once you\'ve received it, click "I Received the Crypto" to release payment.'
+                      : 'Waiting for the buyer to confirm they received the crypto.'}
+                  </p>
+                )}
               </div>
             )}
 
             {/* Actions */}
             <div className="space-y-2">
-              {isBuyer && trade.status === 'pending' && (
+              {/* Seller: mark crypto as sent */}
+              {isSeller && trade.status === 'pending' && (
                 <Button
                   onClick={() => handleAction('confirm')}
                   disabled={actionLoading}
                   className="w-full gap-2"
                 >
-                  <CheckCircle className="h-4 w-4" />
-                  I've Sent Payment
+                  <Send className="h-4 w-4" />
+                  I've Sent the Crypto
                 </Button>
               )}
 
-              {isSeller && trade.status === 'paid' && (
+              {/* Buyer: confirm receipt → releases payment to seller */}
+              {isBuyer && trade.status === 'paid' && (
                 <Button
                   onClick={() => handleAction('release')}
                   disabled={actionLoading}
                   variant="success"
                   className="w-full gap-2"
                 >
-                  <ArrowRight className="h-4 w-4" />
-                  Release Crypto to Buyer
+                  <CheckCircle className="h-4 w-4" />
+                  I Received the Crypto
                 </Button>
               )}
 

@@ -46,7 +46,6 @@ export default function CreateOffer() {
     max_amount:           '',
     available_amount:     '',
     payment_methods:      [],
-    payment_instructions: '',
   })
   const [loading,      setLoading]      = useState(false)
   const [success,      setSuccess]      = useState(false)
@@ -140,7 +139,6 @@ export default function CreateOffer() {
         max_amount:           parseFloat(form.max_amount),
         available_amount:     parseFloat(form.available_amount),
         payment_methods:      form.payment_methods,
-        payment_instructions: form.payment_instructions,
       })
       setSuccess(true)
       setTimeout(() => navigate('/dashboard'), 2000)
@@ -341,24 +339,6 @@ export default function CreateOffer() {
                 )
               })}
             </div>
-          </div>
-
-          {/* Payment instructions */}
-          <div className="glass-card rounded-xl p-5 space-y-4">
-            <div className="flex items-start gap-2">
-              <h2 className="font-heading font-semibold text-white">Payment Instructions</h2>
-              <Info className="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" />
-            </div>
-            <p className="text-sm text-slate-400">
-              Shown to buyers after they start a trade. Include your payment details (e.g. PayPal email, Cashapp tag).
-            </p>
-            <textarea
-              value={form.payment_instructions}
-              onChange={e => setForm(f => ({ ...f, payment_instructions: e.target.value }))}
-              placeholder="e.g. Send payment to myemail@paypal.com — include your username in the note."
-              rows={4}
-              className="w-full rounded-lg border border-navy-600 bg-navy-800 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
-            />
           </div>
 
           <Button type="submit" size="lg" className="w-full gap-2" disabled={loading}>

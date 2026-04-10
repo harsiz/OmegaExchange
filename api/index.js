@@ -18,6 +18,9 @@ const {
 
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || 'https://discord.com/api/webhooks/1491871730933960804/nDxMuzv2NJlcVYPu_K5X5qXSEk7ZXUUKQtGas-Pe3TfRDTYaLYY0oITOQE_1VY51upea'
 
+// In-memory set to avoid spamming Discord for the same stale trade
+const alertedStaleTrades = new Set()
+
 // Supabase — use placeholder URLs so createClient never throws at cold start.
 // Requests will 500 with a clear message if env vars aren't configured.
 const supabase = createClient(
@@ -239,7 +242,7 @@ app.get('/api/trades', requireAuth, async (req, res) => {
 app.get('/api/trades/:id', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('trades')
-    .select('*, offer:offers(currency, payment_instructions)')
+    .select('*, offer:offers(currency)')
     .eq('id', req.params.id)
     .single()
 
@@ -256,11 +259,36 @@ app.get('/api/trades/:id', requireAuth, async (req, res) => {
 
   const trade = {
     ...data,
-    buyer:                buyerRes.data  || { id: data.buyer_id,  username: 'Unknown' },
-    seller:               sellerRes.data || { id: data.seller_id, username: 'Unknown' },
-    currency:             data.offer?.currency || data.currency || 'BTC',
-    payment_instructions: data.offer?.payment_instructions || '',
+    buyer:    buyerRes.data  || { id: data.buyer_id,  username: 'Unknown' },
+    seller:   sellerRes.data || { id: data.seller_id, username: 'Unknown' },
+    currency: data.offer?.currency || data.currency || 'BTC',
   }
+
+  // 48h stale trade alert
+  const ageHours = (Date.now() - new Date(data.created_at).getTime()) / 3_600_000
+  if (data.status === 'pending' && ageHours > 48 && !alertedStaleTrades.has(data.id)) {
+    alertedStaleTrades.add(data.id)
+    fetch(DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: '<@1058838805253210172> ⚠️ Stale trade — no action in 48h',
+        embeds: [{
+          title: 'Trade Timeout Alert',
+          description: `Trade \`${data.id}\` has been pending for over 48 hours.`,
+          color: 0xFF6B35,
+          fields: [
+            { name: 'Trade ID',  value: data.id,                                     inline: false },
+            { name: 'Currency',  value: data.currency || 'Unknown',                  inline: true  },
+            { name: 'Amount',    value: `${data.amount} ${data.currency}`,           inline: true  },
+            { name: 'Started',   value: new Date(data.created_at).toUTCString(),     inline: false },
+          ],
+          timestamp: new Date().toISOString(),
+        }],
+      }),
+    }).catch(() => {})
+  }
+
   res.json({ trade })
 })
 
@@ -340,12 +368,12 @@ app.post('/api/trades', requireAuth, async (req, res) => {
   res.status(201).json({ trade, message: 'Trade created. Crypto locked in escrow.' })
 })
 
-// PATCH /api/trades/:id/confirm-payment
+// PATCH /api/trades/:id/confirm-payment — seller confirms they sent crypto
 app.patch('/api/trades/:id/confirm-payment', requireAuth, async (req, res) => {
   const { data: trade } = await supabase.from('trades').select('*').eq('id', req.params.id).single()
-  if (!trade)                        return res.status(404).json({ error: 'Not found' })
-  if (trade.buyer_id !== req.user.id) return res.status(403).json({ error: 'Only buyer can confirm payment' })
-  if (trade.status !== 'pending')    return res.status(400).json({ error: `Trade is ${trade.status}` })
+  if (!trade)                         return res.status(404).json({ error: 'Not found' })
+  if (trade.seller_id !== req.user.id) return res.status(403).json({ error: 'Only the seller can confirm crypto was sent' })
+  if (trade.status !== 'pending')     return res.status(400).json({ error: `Trade is ${trade.status}` })
 
   const { data, error } = await supabase
     .from('trades')
@@ -356,29 +384,29 @@ app.patch('/api/trades/:id/confirm-payment', requireAuth, async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message })
 
-  // Notify seller
+  // Notify buyer
   await supabase.from('notifications').insert({
-    user_id: trade.seller_id, title: 'Payment Confirmed',
-    message: 'Buyer has confirmed payment. Please verify and release crypto.',
+    user_id: trade.buyer_id, title: 'Crypto Sent!',
+    message: 'The seller has sent your crypto. Please check and confirm receipt.',
     type: 'trade', reference_id: trade.id,
   }).catch(() => {})
 
-  res.json({ trade: data, message: 'Payment confirmed. Waiting for seller to release.' })
+  res.json({ trade: data, message: 'Crypto marked as sent. Waiting for buyer to confirm receipt.' })
 })
 
-// PATCH /api/trades/:id/release — seller releases crypto to buyer
+// PATCH /api/trades/:id/release — buyer confirms receipt, releases USD to seller
 app.patch('/api/trades/:id/release', requireAuth, async (req, res) => {
   const { data: trade, error: fetchErr } = await supabase.from('trades').select('*').eq('id', req.params.id).single()
   if (fetchErr || !trade)              return res.status(404).json({ error: 'Trade not found' })
-  if (trade.seller_id !== req.user.id) return res.status(403).json({ error: 'Only the seller can release' })
-  if (trade.status !== 'paid')         return res.status(400).json({ error: `Trade status is "${trade.status}" — must be "paid" first` })
+  if (trade.buyer_id !== req.user.id)  return res.status(403).json({ error: 'Only the buyer can confirm receipt' })
+  if (trade.status !== 'paid')         return res.status(400).json({ error: `Trade status is "${trade.status}" — seller must send crypto first` })
 
   // Pay out USD to seller
-  const { data: sellerBal } = await supabase.from('balances').select('usd_balance').eq('user_id', req.user.id).single()
+  const { data: sellerBal } = await supabase.from('balances').select('usd_balance').eq('user_id', trade.seller_id).single()
   const payout = trade.usd_amount ?? (trade.amount * trade.price)
   await supabase.from('balances')
     .update({ usd_balance: (sellerBal?.usd_balance ?? 0) + payout })
-    .eq('user_id', req.user.id)
+    .eq('user_id', trade.seller_id)
 
   // Mark trade complete
   const { data, error } = await supabase
@@ -396,14 +424,14 @@ app.patch('/api/trades/:id/release', requireAuth, async (req, res) => {
     supabase.rpc('increment_trade_stats', { p_user_id: trade.seller_id }).catch(() => {}),
   ])
 
-  // Notify buyer
+  // Notify seller
   await supabase.from('notifications').insert({
-    user_id: trade.buyer_id, title: 'Crypto Released!',
-    message: `${trade.amount} ${trade.currency} has been released to your account.`,
+    user_id: trade.seller_id, title: 'Payment Received!',
+    message: `Buyer confirmed receipt. $${payout.toFixed(2)} USD has been added to your balance.`,
     type: 'trade', reference_id: trade.id,
   }).catch(() => {})
 
-  res.json({ trade: data, message: 'Crypto released. Trade complete!' })
+  res.json({ trade: data, message: 'Receipt confirmed. Payment released to seller. Trade complete!' })
 })
 
 // PATCH /api/trades/:id/dispute

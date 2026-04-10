@@ -63,8 +63,8 @@ export function getCompletionRate(rep) {
 
 export function getStatusLabel(status) {
   const map = {
-    pending:   'Awaiting Payment',
-    paid:      'Payment Sent',
+    pending:   'Awaiting Seller',
+    paid:      'Crypto Sent',
     completed: 'Completed',
     disputed:  'In Dispute',
     cancelled: 'Cancelled',
