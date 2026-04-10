@@ -15,7 +15,7 @@ import {
   DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import { CryptoIcon } from '@/components/CryptoIcon'
-import { formatUSD, formatCrypto, timeAgo, shortenId } from '@/lib/utils'
+import { formatUSD, formatCrypto, getStatusLabel, timeAgo, shortenId } from '@/lib/utils'
 import { toast } from '@/hooks/useToast'
 
 const STATUS_STEPS = [

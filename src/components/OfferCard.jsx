@@ -33,7 +33,8 @@ export default function OfferCard({ offer, requestedAmount }) {
       const { data } = await tradesApi.create({ offer_id: offer.id, amount })
       const tradeId = data?.trade?.id
       if (!tradeId) throw new Error('Trade created but no ID returned — check My Trades.')
-      navigate(`/trade/${tradeId}`)
+      setLoading(false)
+      window.location.href = `/trade/${tradeId}`
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Please try again.'
       toast({ title: 'Failed to start trade', description: msg, variant: 'destructive' })
