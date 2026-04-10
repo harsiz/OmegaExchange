@@ -50,7 +50,7 @@ export default function TradeWidget({ defaultTab = 'buy' }) {
   }
 
   return (
-    <div className="widget-card w-full max-w-sm mx-auto p-0 overflow-hidden">
+    <div className="widget-card w-full max-w-sm mx-auto p-0 overflow-visible">
       {/* Tabs */}
       <div className="flex border-b border-slate-100">
         {['buy', 'sell'].map(t => (
